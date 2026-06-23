@@ -1,3 +1,5 @@
+<img width="1536" height="1024" alt="ChatGPT Image 23 6 2026 klo 05 04 58" src="https://github.com/user-attachments/assets/fd2a7fa3-4fdc-4011-b535-ff984d7efc4f" />
+
 # 🎛️ Demoscene Simulator
 by T. Pitkänen
 
