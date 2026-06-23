@@ -1,0 +1,6 @@
+{
+  "name": "Demoscene Simulator",
+  "description": "Simulate retro demoscene history (1985-2005). Hire and manage coders, artists, and musicians, research copper tricks and software rendering, create 4KB, 64KB, or Megademos, watch live retro rendering canvas effects, compete at legendary parties, and read scene magazines.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
