@@ -1,4 +1,7 @@
 # 🎛️ Demoscene Simulator
+by T. Pitkänen
+
+Initial project started with Google AI studio, further development made locally with other AI tools.
 
 A **hybrid simulation + narrative system** that models a living demoscene ecosystem (1985–2005 era) using:
 
@@ -55,7 +58,7 @@ Example event:
 }
 ```
 
-🧾 Simulation Engine (Deterministic Core)
+## 🧾 Simulation Engine (Deterministic Core)
 
 The simulation engine:
 
@@ -70,7 +73,8 @@ demo production pipeline
 reputation system
 party/compo simulation
 time progression
-🧠 Social Graph System
+
+## 🧠 Social Graph System
 
 The world is represented as a dynamic graph:
 
@@ -90,7 +94,7 @@ collaboration
 
 Graph changes are derived entirely from events.
 
-💬 BBS System (Information Layer)
+## 💬 BBS System (Information Layer)
 
 The BBS is a simulated information network:
 
@@ -108,7 +112,8 @@ reputation amplifier
 rumor network
 social pressure system
 historical archive
-✍️ LLM Layer (Optional)
+
+## ✍️ LLM Layer (Optional)
 
 The LLM layer is used ONLY for:
 
@@ -126,7 +131,7 @@ simulation outcomes
 
 Simulation is deterministic. Language is expressive.
 
-🔁 Event Sourcing Model
+## 🔁 Event Sourcing Model
 Rules
 The event log is immutable
 State is always derived
@@ -135,7 +140,8 @@ Core operations:
 appendEvent(event)
 replayEvents()
 buildProjections()
-🧬 Projections
+
+## 🧬 Projections
 
 Derived views of the event log:
 
@@ -153,7 +159,8 @@ World Graph Projection
 nodes (entities)
 edges (relationships)
 influence flow
-🎮 Gameplay Loop
+
+## 🎮 Gameplay Loop
 NPCs interact via BBS and scene events
 Simulation engine processes events
 New events are generated (reactions, consequences)
@@ -168,14 +175,16 @@ personality traits
 technical skills
 memory of events
 evolving relationships
-🧵 BBS System
+
+## 🧵 BBS System
 
 Simulated forum network where:
 
 posts propagate influence
 drama emerges organically
 reputation spreads socially
-🎨 Demo System
+
+## 🎨 Demo System
 
 Demos are produced via pipeline:
 
@@ -187,7 +196,7 @@ competition entry
 
 Outcomes are emergent, not scripted.
 
-🏆 Party System
+## 🏆 Party System
 
 Events simulate demoscene gatherings:
 
@@ -195,7 +204,8 @@ competitions
 networking
 rivalry escalation
 breakthroughs and releases
-📂 Suggested Project Structure
+
+## 📂 Suggested Project Structure
 /sim
   /events
     types.ts
@@ -223,7 +233,8 @@ breakthroughs and releases
 
 /docs
   design notes and system evolution
-🔄 Determinism Requirement
+
+## 🔄 Determinism Requirement
 
 The simulation must be:
 
@@ -231,7 +242,7 @@ fully replayable from the event log
 
 If all events are replayed in order, the world state must be identical.
 
-🚧 Current Status
+## 🚧 Current Status
  Event-driven architecture defined
  BBS system implemented (basic)
  NPC interaction system in progress
@@ -239,7 +250,8 @@ If all events are replayed in order, the world state must be identical.
  Graph-based world model
  Demo production pipeline
  LLM integration (rendering only)
-🎯 Long-Term Vision
+
+## 🎯 Long-Term Vision
 
 A fully emergent simulation of:
 
@@ -253,13 +265,14 @@ Where:
 
 demos are not designed — they emerge from a living scene
 
-⚡ Design Principle Summary
+##⚡ Design Principle Summary
 Everything is an event
 Nothing is directly edited
 All state is derived
 LLMs only render, never decide
 The scene evolves through interaction, not scripting
-🧪 License / Experimental Note
+
+## 🧪 License / Experimental Note
 
 This project is experimental simulation software exploring:
 
