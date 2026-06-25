@@ -15,6 +15,9 @@
  *   - bbs.ts       : thread mutation / viral-spread math
  *   - demo.ts      : production scoring, size-calculation
  *   - reputation.ts: per-edge diffusion math
+ *   - economy.ts   : hardware availability filter, performance aggregate,
+ *                    trust-weighted job payout, net-worth helper
  */
 
 export * from "./party";
+export * from "./economy";

@@ -1,0 +1,71 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * SPONSORSHIP_CATALOG — typed seed of late-era sponsorship deals. The
+ * PROJECTS (`MoneyEarned{source: "Sponsorship"}` events) are accepted by a
+ * UI prompt that DISPATCHES — i.e. they never fire autonomously, and the
+ * AI/LLM layer MUST NOT make the accept/reject call.
+ *
+ * Pure data. No `Math.random()`, no React, no DOM.
+ */
+
+import type { SponsorshipOffering } from "@packages/types";
+
+export const SPONSORSHIP_CATALOG: SponsorshipOffering[] = [
+  {
+    id: "sponsor_amiga_market_1993",
+    sponsorName: "Commodore-Amiga Marketplace",
+    description:
+      "Amiga fan magazine pays a quarterly stipend for editorial coverage + early access to your demos. Funds required tooling upgrades.",
+    minReputation: 250,
+    availableFromYear: 1993,
+    cashPayment: 1200,
+    partyPlacementBonus: 150,
+    flavorTag: "Amiga era coverage",
+  },
+  {
+    id: "sponsor_scene_bbs_1996",
+    sponsorName: "Console-Link BBS Network",
+    description:
+      "Major BBS network offers hardware loans and bandwidth stipends in exchange for ad slots in your biggest releases.",
+    minReputation: 400,
+    availableFromYear: 1996,
+    cashPayment: 2400,
+    partyPlacementBonus: 250,
+    flavorTag: "BBS distribution era",
+  },
+  {
+    id: "sponsor_chipvendor_1998",
+    sponsorName: "3dfx Pre-Release Hardware Partner",
+    description:
+      "3dfx sends your crew early Voodoo 2 SLI boards to test against. Cash stipend attached for toolchain work.",
+    minReputation: 550,
+    availableFromYear: 1998,
+    cashPayment: 3600,
+    partyPlacementBonus: 350,
+    flavorTag: "GPU accelerator era",
+  },
+  {
+    id: "sponsor_audio_brand_2000",
+    sponsorName: "Echo Audio Mastertools",
+    description:
+      "Audio workbench pays cash for your team's procedural-music contributions to their monthly magazine.",
+    minReputation: 650,
+    availableFromYear: 2000,
+    cashPayment: 4600,
+    partyPlacementBonus: 400,
+    flavorTag: "Procedural audio era",
+  },
+  {
+    id: "sponsor_modern_press_2003",
+    sponsorName: "Procedural Press Network",
+    description:
+      "Online demo magazine underwrites raymarcher research in exchange for exclusive first-release rights.",
+    minReputation: 800,
+    availableFromYear: 2003,
+    cashPayment: 6800,
+    partyPlacementBonus: 500,
+    flavorTag: "Shader era",
+  },
+];

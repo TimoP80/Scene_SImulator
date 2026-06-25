@@ -2,10 +2,13 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * Projection barrels \u2014 stubs. Each file in this folder exposes a derived
- * view of the WorldState (or its event log) tailored for a specific UI surface
- * in /apps/ui. Projections MUST be pure read-only consumers of state + events;
+ * Projection barrels \u2014 each file in this folder exposes a derived view of
+ * the WorldState (or its event log) tailored for a specific UI surface in
+ * /apps/ui. Projections MUST be pure read-only consumers of state + events;
  * they must NEVER mutate or dispatch.
+ *
+ * Concrete projections:
+ *   - economy.ts: cash / hardware / software / freelance / sponsorship view
  *
  * Future concrete files:
  *   - npcProjection.ts: characters + groups + reputation spread
@@ -15,4 +18,4 @@
  *   - releasesProjection.ts: productions grouped by platform/year
  */
 
-export {};
+export * from "./economy";

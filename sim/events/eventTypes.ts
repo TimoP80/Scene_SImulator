@@ -19,6 +19,10 @@ import type {
   SocialEdge,
   SocialNode,
   TechNode,
+  ExpenseCategory,
+  HardwareCategory,
+  IncomeSource,
+  TravelSubscriptionTier,
 } from "@packages/types";
 
 export type EventTimestamp = number; // simulated calendar tick (year * 12 + month)
@@ -179,6 +183,103 @@ export interface NpcOpinionDriftedEvent extends BaseEvent {
   delta: number;
 }
 
+// --- Economy / hardware / freelance -----------------------------------------
+//
+// Schema note: these events complement the existing `MoneyChanged` flow with
+// category-attributed ledger entries. New economy code dispatches *both*:
+//   - a `MoneyEarned` or `MoneySpent` so the ledger captures the cash flow,
+//   - a domain event (`HardwarePurchased`, `SoftwarePurchased`,
+//     `JobCompleted`, `PartyPrizeAwarded`, \u2026) so projection readers
+//     see the *reason* for that cash flow.
+//
+// CLIs and projections that need to answer "what's the current balance?"
+// read `state.player.money`, which the reducer keeps in lock-step with the
+// ledger on each earn/spent. The `MoneyChanged` event remains for callers
+// that want a money update without committing to a category attribution.
+
+export interface MoneyEarnedEvent extends BaseEvent {
+  type: "MoneyEarned";
+  amount: number;
+  source: IncomeSource;
+  /** Optional id pointing at the originating offer / prize / sponsorship. */
+  sourceRefId?: string;
+}
+
+export interface MoneySpentEvent extends BaseEvent {
+  type: "MoneySpent";
+  amount: number;
+  category: ExpenseCategory;
+  /** Optional: capture which hardware or software item this paid for. */
+  purchasedItem?: { kind: "hardware" | "software"; itemId: string };
+  sourceRefId?: string;
+}
+
+export interface JobAcceptedEvent extends BaseEvent {
+  type: "JobAccepted";
+  instanceId: string;
+  templateId: string;
+  npcProviderId?: string;
+  payment: number;
+  reputationDelta: number;
+  deadlineYear: number;
+  deadlineMonth: number;
+}
+
+export interface JobCompletedEvent extends BaseEvent {
+  type: "JobCompleted";
+  instanceId: string;
+  success: boolean;
+}
+
+export interface HardwarePurchasedEvent extends BaseEvent {
+  type: "HardwarePurchased";
+  itemId: string;
+  instanceId: string;
+  condition: "new" | "refurbished" | "used";
+  /** Cost is ATTRIBUTED, not debited here. Caller dispatches MoneySpent alongside. */
+  cost: number;
+}
+
+export interface HardwareSoldEvent extends BaseEvent {
+  type: "HardwareSold";
+  instanceId: string;
+  itemId: string;
+  resalePrice: number;
+}
+
+export interface TravelExpensePaidEvent extends BaseEvent {
+  type: "TravelExpensePaid";
+  partyId: string;
+  amount: number;
+  distanceKind: "local" | "regional" | "international";
+}
+
+export interface SoftwarePurchasedEvent extends BaseEvent {
+  type: "SoftwarePurchased";
+  softwareId: string;
+  cost: number;
+}
+
+export interface PartyPrizeAwardedEvent extends BaseEvent {
+  type: "PartyPrizeAwarded";
+  productionId: string;
+  placement: number;
+  partyName: string;
+  cashPrize: number;
+  repPrize: number;
+}
+
+/**
+ * Subscription change. Keeps `state.economy.travel.activeSubscription` in
+ * sync with how much of "internet" the player carries \u2014 needed for BBS
+ * reliability, demo upload speed, and freelancer inbound velocity.
+ */
+export interface TravelSubscriptionChangedEvent extends BaseEvent {
+  type: "TravelSubscriptionChanged";
+  tier: TravelSubscriptionTier;
+  monthlyFee: number;
+}
+
 // --- Discriminated union ----------------------------------------------------
 
 export type SimEvent =
@@ -202,7 +303,17 @@ export type SimEvent =
   | NewsArticlePublishedEvent
   | BbsThreadMutatedEvent
   | NpcMemoryTransformedEvent
-  | NpcOpinionDriftedEvent;
+  | NpcOpinionDriftedEvent
+  | MoneyEarnedEvent
+  | MoneySpentEvent
+  | JobAcceptedEvent
+  | JobCompletedEvent
+  | HardwarePurchasedEvent
+  | HardwareSoldEvent
+  | TravelExpensePaidEvent
+  | SoftwarePurchasedEvent
+  | PartyPrizeAwardedEvent
+  | TravelSubscriptionChangedEvent;
 
 /** Narrow event types for a given `type` discriminator. */
 export type SimEventOf<T extends SimEvent["type"]> = Extract<SimEvent, { type: T }>;

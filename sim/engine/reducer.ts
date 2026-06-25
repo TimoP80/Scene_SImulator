@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * Pure reducer \u2014 the single source of truth for sim state shape.
+ * Pure reducer — the single source of truth for sim state shape.
  * Takes (state, event) and returns the next state WITHOUT mutating.
  *
  * NO React, NO DOM, NO LLM, NO setTimeout, NO fetch. The setCompilerProgress
@@ -16,8 +16,14 @@
 
 import {
   PlatformId,
+  TravelSubscriptionTier,
+  type ActiveJob,
   type BBSThread,
   type Character,
+  type ExpenseLedgerEntry,
+  type IncomeLedgerEntry,
+  type OwnedHardware,
+  type OwnedSoftware,
   type PartyEvent,
   type Production,
   type SceneMagazine,
@@ -74,6 +80,33 @@ export interface WorldState {
     lastCashPrize: number;
     lastRepPrize: number;
   };
+  /**
+   * Economy slice — hardware inventory, software inventory, freelance job
+   * board, income/expense ledger, and travel subscription details.
+   *
+   * Invariant: `state.player.money === sum(ledger.income) - sum(ledger.expense)`
+   * is maintained by the reducer for MoneyEarned / MoneySpent events.
+   * MoneyChanged and the legacy `BurnoutReduced -> MoneyChanged` flow
+   * continue to work alongside; both paths clamp balance >= 0.
+   */
+  economy: {
+    ledger: {
+      income: IncomeLedgerEntry[];
+      expense: ExpenseLedgerEntry[];
+    };
+    hardware: OwnedHardware[];
+    software: OwnedSoftware[];
+    jobs: {
+      /** Live jobs (status: in_progress / completed / failed). */
+      active: ActiveJob[];
+      /** Cached ids from JOB_TEMPLATES that are currently in-window. */
+      templatesAvailable: string[];
+    };
+    travel: {
+      activeSubscription: TravelSubscriptionTier;
+      lastTravelToPartyId: string | null;
+    };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -107,11 +140,21 @@ export function emptyWorldState(): WorldState {
       lastCashPrize: 0,
       lastRepPrize: 0,
     },
+    economy: {
+      ledger: { income: [], expense: [] },
+      hardware: [],
+      software: [],
+      jobs: { active: [], templatesAvailable: [] },
+      travel: {
+        activeSubscription: "none",
+        lastTravelToPartyId: null,
+      },
+    },
   };
 }
 
 // ---------------------------------------------------------------------------
-// The reducer \u2014 SINGLE source of truth.
+// The reducer — SINGLE source of truth.
 // ---------------------------------------------------------------------------
 
 export function reduce(state: WorldState, event: SimEvent): WorldState {
@@ -262,8 +305,6 @@ export function reduce(state: WorldState, event: SimEvent): WorldState {
       };
     }
     case "NodeAdded": {
-      // Mirror the full node payload into the social graph; dedupe by id so
-      // repeated GraphInit events don't multiply the node list.
       if (state.socialGraph.nodes.some((n) => n.id === event.node.id)) {
         return state;
       }
@@ -300,7 +341,6 @@ export function reduce(state: WorldState, event: SimEvent): WorldState {
     case "NewsArticlePublished":
       return { ...state, press: { newsLog: [event.article, ...state.press.newsLog] } };
     case "BbsThreadMutated": {
-      // Threads are mutable; viralRank travels with the thread object.
       const idx = state.bbs.threads.findIndex((t) => t.id === event.threadId);
       if (idx === -1) return state;
       const updatedThreads = state.bbs.threads.slice();
@@ -309,9 +349,6 @@ export function reduce(state: WorldState, event: SimEvent): WorldState {
       return { ...state, bbs: { threads: updatedThreads } };
     }
     case "NpcMemoryTransformed": {
-      // Rotate one memory item from shortTermMemory to longTermMemory, with
-      // a strength boost on transition. No-op if the character/cognitive is
-      // missing or the memory id isn't in short-term storage.
       const char = state.crew.characters[event.charId];
       if (!char || !char.cognitive) return state;
       const fromIdx = char.cognitive.shortTermMemory.findIndex((m) => m.id === event.memoryId);
@@ -344,9 +381,6 @@ export function reduce(state: WorldState, event: SimEvent): WorldState {
       };
     }
     case "NpcOpinionDrifted": {
-      // Accumulate per-entity opinion delta inside the NPC's cognitive
-      // opinionVectors. No-op if the character/cognitive is missing;
-      // clamp to [-100, 100].
       const char = state.crew.characters[event.charId];
       if (!char || !char.cognitive) return state;
       const prev = char.cognitive.opinionVectors[event.entity] ?? 0;
@@ -365,6 +399,242 @@ export function reduce(state: WorldState, event: SimEvent): WorldState {
               ...char,
               cognitive: { ...char.cognitive, opinionVectors: updatedOpinionVectors },
             },
+          },
+        },
+      };
+    }
+    case "MoneyEarned": {
+      // Symmetric with MoneySpent: drop the duplicate stamped id before
+      // mutating. Holds the invariant
+      //   state.player.money === sum(income) - sum(expense)
+      // across replay / stale-snapshot re-dispatch.
+      if (state.economy.ledger.income.some((e) => e.id === event.id)) {
+        return state;
+      }
+      const year = Math.floor(event.ts / 12);
+      const month = event.ts % 12;
+      const incomeEntry: IncomeLedgerEntry = {
+        id: event.id,
+        year,
+        month,
+        amount: event.amount,
+        source: event.source,
+        sourceRefId: event.sourceRefId,
+      };
+      return {
+        ...state,
+        player: { ...state.player, money: state.player.money + event.amount },
+        economy: {
+          ...state.economy,
+          ledger: {
+            ...state.economy.ledger,
+            income: [...state.economy.ledger.income, incomeEntry],
+          },
+        },
+      };
+    }
+    case "MoneySpent": {
+      // Symmetric with MoneyEarned: dedup-by-event-id before mutating.
+      // Balance clamps at 0 (demoscene budget can't go further into debt);
+      // the ledger records the *intended* amount so the UI can show
+      // "refused purchase" affordances from the refund / Sponsorship flow.
+      if (state.economy.ledger.expense.some((e) => e.id === event.id)) {
+        return state;
+      }
+      const year = Math.floor(event.ts / 12);
+      const month = event.ts % 12;
+      const expenseEntry: ExpenseLedgerEntry = {
+        id: event.id,
+        year,
+        month,
+        amount: event.amount,
+        category: event.category,
+        purchasedItem: event.purchasedItem,
+        sourceRefId: event.sourceRefId,
+      };
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          money: Math.max(0, state.player.money - event.amount),
+        },
+        economy: {
+          ...state.economy,
+          ledger: {
+            ...state.economy.ledger,
+            expense: [...state.economy.ledger.expense, expenseEntry],
+          },
+        },
+      };
+    }
+    case "JobAccepted": {
+      // Don't double-accept the same instanceId.
+      if (state.economy.jobs.active.some((j) => j.instanceId === event.instanceId)) {
+        return state;
+      }
+      const acceptedYear = Math.floor(event.ts / 12);
+      const acceptedMonth = event.ts % 12;
+      const newJob: ActiveJob = {
+        instanceId: event.instanceId,
+        templateId: event.templateId,
+        npcProviderId: event.npcProviderId,
+        acceptedYear,
+        acceptedMonth,
+        progressPct: 0,
+        deadlineYear: event.deadlineYear,
+        deadlineMonth: event.deadlineMonth,
+        status: "in_progress",
+      };
+      return {
+        ...state,
+        economy: {
+          ...state.economy,
+          jobs: {
+            ...state.economy.jobs,
+            active: [...state.economy.jobs.active, newJob],
+          },
+        },
+      };
+    }
+    case "JobCompleted": {
+      const idx = state.economy.jobs.active.findIndex(
+        (j) => j.instanceId === event.instanceId,
+      );
+      if (idx === -1) return state;
+      const updatedJobs = state.economy.jobs.active.slice();
+      updatedJobs[idx] = {
+        ...updatedJobs[idx]!,
+        status: event.success ? "completed" : "failed",
+        progressPct: 100,
+      };
+      return {
+        ...state,
+        economy: {
+          ...state.economy,
+          jobs: { ...state.economy.jobs, active: updatedJobs },
+        },
+      };
+    }
+    case "HardwarePurchased": {
+      // The MoneySpent that pays for this is dispatched separately by the
+      // caller; we only update the inventory here.
+      if (state.economy.hardware.some((h) => h.instanceId === event.instanceId)) {
+        return state;
+      }
+      const purchaseYear = Math.floor(event.ts / 12);
+      const purchaseMonth = event.ts % 12;
+      const initialWear =
+        event.condition === "new"
+          ? 0
+          : event.condition === "refurbished"
+            ? 30
+            : 60;
+      const owned: OwnedHardware = {
+        instanceId: event.instanceId,
+        itemId: event.itemId,
+        purchaseYear,
+        purchaseMonth,
+        condition: event.condition,
+        wearLevel: initialWear,
+      };
+      return {
+        ...state,
+        economy: {
+          ...state.economy,
+          hardware: [...state.economy.hardware, owned],
+        },
+      };
+    }
+    case "HardwareSold": {
+      const idx = state.economy.hardware.findIndex(
+        (h) => h.instanceId === event.instanceId,
+      );
+      if (idx === -1) return state;
+      // Validate: the caller-supplied itemId MUST match the owned row's
+      // itemId. A mismatch is a caller bug — drop the event (no-op with
+      // in-code comment per docs/event-sourcing.md) rather than destroy
+      // an unrelated row.
+      const ownedRow = state.economy.hardware[idx]!;
+      if (ownedRow.itemId !== event.itemId) {
+        return state;
+      }
+      const updatedHardware = state.economy.hardware.slice();
+      updatedHardware.splice(idx, 1);
+      return {
+        ...state,
+        economy: {
+          ...state.economy,
+          hardware: updatedHardware,
+        },
+      };
+    }
+    case "SoftwarePurchased": {
+      if (state.economy.software.some((s) => s.softwareId === event.softwareId)) {
+        return state;
+      }
+      const purchasedYear = Math.floor(event.ts / 12);
+      const purchasedMonth = event.ts % 12;
+      const owned: OwnedSoftware = {
+        softwareId: event.softwareId,
+        purchasedYear,
+        purchasedMonth,
+        currentlyUsable: true,
+      };
+      return {
+        ...state,
+        economy: {
+          ...state.economy,
+          software: [...state.economy.software, owned],
+        },
+      };
+    }
+    case "TravelExpensePaid": {
+      return {
+        ...state,
+        economy: {
+          ...state.economy,
+          travel: {
+            ...state.economy.travel,
+            lastTravelToPartyId: event.partyId,
+          },
+        },
+      };
+    }
+    case "PartyPrizeAwarded": {
+      // Mirrors the older PartyResultsAwarded reducer behavior (placement
+      // + partyName stamped onto the matching production). Currency lives
+      // entirely in MoneyEarned / MoneySpent — the caller dispatches a
+      // paired MoneyEarned{cashPrize, PartyPrize} for the cash side.
+      const target = state.productions.mine[event.productionId];
+      const updatedMine = target
+        ? {
+            ...state.productions.mine,
+            [event.productionId]: {
+              ...target,
+              placement: event.placement,
+              partyName: event.partyName,
+            },
+          }
+        : state.productions.mine;
+      return {
+        ...state,
+        productions: { mine: updatedMine },
+        party: {
+          ...state.party,
+          lastPlacement: event.placement,
+          lastCashPrize: event.cashPrize,
+          lastRepPrize: event.repPrize,
+        },
+      };
+    }
+    case "TravelSubscriptionChanged": {
+      return {
+        ...state,
+        economy: {
+          ...state.economy,
+          travel: {
+            ...state.economy.travel,
+            activeSubscription: event.tier,
           },
         },
       };

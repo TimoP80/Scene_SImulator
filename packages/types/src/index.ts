@@ -15,3 +15,4 @@ export * from "./bbs";
 export * from "./party";
 export * from "./shared";
 export * from "./save";
+export * from "./economy";
