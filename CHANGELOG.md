@@ -66,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - BBS reply/recruit responses, release flow, party memories, alliance messages, cognitive-stats UI — no longer hardcode `"Tricycle Crews"` when the player picks a custom crew name.
 - `sim/engine/reducer.ts::emptyWorldState.groupName` hardcode flagged with a `TODO(dynamic-name)` for the eventual event-sourced hydrate path (current UI bypasses this through MainMenu's `setPlayerGroupName`).
+- **`src/components/EconomyPanel.tsx`** (post-launch nit cleanup): the force-render setter is renamed `setTick` → `_tick` with a comment flagging it as a non-standard force-render trigger (underscore-prefixed; the destructured state value is intentionally never read); each recent-ledger row now renders a sim-month label (e.g. `Y1985 M11`) via a new module-level `ledgerMonthLabel(ts)` helper — the helper intentionally uses `((ts - 1) % 12) + 1` rather than `ts % 12` so the `December→January` boundary does not inflate the displayed year by one; the SOFTWARE_CATALOG section now distinguishes the "catalog itself empty (data missing)" case from "filtered to empty for the current year" so the player sees an actionable CTA instead of a misleading empty-state.
 
 ### Removed
 

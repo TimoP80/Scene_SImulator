@@ -43,7 +43,7 @@ import {
   type SoftwareOffering,
   type SponsorshipOffering,
 } from "@packages/types";
-import { advanceMonths, generateId } from "@packages/utils";
+import { advanceMonths, generateId, simTimestamp } from "@packages/utils";
 
 import type { SimulationLoop } from "@sim/engine/simulationLoop";
 import { getCurrentTick } from "@sim/events/appendEvent";
@@ -71,9 +71,14 @@ export default function EconomyPanel({ loop }: EconomyPanelProps) {
   // Force a re-render whenever any event lands. The simulation loop in
   // App.tsx has an empty onTick heartbeat to keep /apps/ui migrations safe,
   // so without this subscription the view would freeze on the first snapshot.
-  const [, setTick] = useState(0);
+  // The destructured state value is intentionally never read; `_tick` is
+  // invoked solely to satisfy React's "setState triggers a re-render"
+  // contract. The underscore-prefixed name flags it as non-standard: this
+  // is a force-render trigger on eventStore emissions, not a conventional
+  // piece of UI state.
+  const [, _tick] = useState(0);
   useEffect(() => {
-    const off = eventStore.on("*", () => setTick((t) => t + 1));
+    const off = eventStore.on("*", () => _tick((t) => t + 1));
     return off;
   }, []);
 
@@ -232,6 +237,10 @@ export default function EconomyPanel({ loop }: EconomyPanelProps) {
   const shopSoftware = SOFTWARE_CATALOG.filter(
     (sw) => sw.releaseYear <= (loop?.snapshot().calendar.year ?? Infinity),
   );
+  // Guard the "catalog itself is empty (data missing)" case separately from
+  // "catalog non-empty but nothing unlocked for the current year" so the
+  // player sees an actionable CTA rather than a misleading "nothing here".
+  const shopSoftwareCatalogMissing = SOFTWARE_CATALOG.length === 0;
 
   return (
     <div id="economy-dash" className="space-y-6 font-mono select-none">
@@ -462,7 +471,12 @@ export default function EconomyPanel({ loop }: EconomyPanelProps) {
             </span>
           </div>
           <ul className="space-y-1.5 max-h-[440px] overflow-y-auto pr-1">
-            {shopSoftware.length === 0 ? (
+            {shopSoftwareCatalogMissing ? (
+              <p className="text-zinc-500 italic text-[11px]">
+                Software catalog not initialized (data missing). Build the
+                sim seed to populate the shop.
+              </p>
+            ) : shopSoftware.length === 0 ? (
               <p className="text-zinc-500 italic text-[11px]">
                 Software catalog empty for this year.
               </p>
@@ -656,6 +670,12 @@ export default function EconomyPanel({ loop }: EconomyPanelProps) {
                     {row.kind === "income" ? "+" : "−"}
                   </span>
                   {row.label}
+                  {/* Sim-month label derived from the packed `ts`; uses
+                      ((ts-1)%12)+1 so the year of a December row is not
+                      inflated to the next year by naïve `ts%12`. */}
+                  <span className="text-zinc-500 text-[9px] ml-1.5 font-bold uppercase tracking-wider">
+                    {ledgerMonthLabel(row.ts)}
+                  </span>
                 </span>
                 <span className="font-black">
                   ${row.amount.toLocaleString()}
@@ -672,6 +692,25 @@ export default function EconomyPanel({ loop }: EconomyPanelProps) {
 // ---------------------------------------------------------------------------
 // Sub-cards
 // ---------------------------------------------------------------------------
+
+/**
+ * Convert a packed ledger `ts` (encoded by this panel as
+ * `entry.year * 12 + entry.month`, with `month` in 1..12) into the existing
+ * `Y1985 M1` legacy-tag format produced by `simTimestamp` in
+ * `@packages/utils/time.ts`.
+ *
+ * The unpacking intentionally avoids naïve `ts % 12` — at the
+ * December→January boundary (`month=12`, `ts=year*12+12`) the remainder
+ * is 0, which would inflate the displayed year by one and return an
+ * empty string from MONTH_NAMES. The `((ts - 1) % 12) + 1` formulation
+ * keeps `month1to12` strictly in 1..12 across the boundary.
+ */
+function ledgerMonthLabel(ts: number): string {
+  const month1to12 = ((ts - 1) % 12) + 1;
+  const year = Math.floor((ts - month1to12) / 12);
+  return simTimestamp(year, month1to12);
+}
+
 
 function StatCard(props: {
   icon: React.ReactNode;
