@@ -47,6 +47,7 @@ import { rivalFocusFor } from "@sim/domain";
 import GddViewer from "./components/GddViewer";
 import DemoScreen from "./components/DemoScreen";
 import SocialGraphTab from "./components/SocialGraphTab";
+import EconomyPanel from "./components/EconomyPanel";
 
 import MainMenu from "./components/MainMenu";
 import { SimulationLoop } from "@sim/engine/simulationLoop";
@@ -90,7 +91,8 @@ import {
   Bell,
   Bookmark,
   Brain,
-  Share2
+  Share2,
+  Wallet,
 } from "lucide-react";
 
 function getInitialCognitiveModel(charId: string): CognitiveModel {
@@ -656,7 +658,7 @@ export default function App() {
       choices: [
         { text: "Support Ranger: Limit and 6502 register control is the zenith of computer science!", type: "support", effectDescription: "Ranger appreciation: +25 Friendship, +20 Motivation" },
         { text: "Flame Ranger: Get real, 1MHz 8-bit computers can't render fluid voxel fields.", type: "flame", effectDescription: "Ranger hostility: -25 Friendship with Ranger" },
-        { text: "Recruit Ranger: Tricycle Crews needs a low-level master. Code with us!", type: "recruit", effectDescription: "Recruit offer: +20 friendship, Ranger salary demand decreases" }
+        { text: `Recruit Ranger: ${playerGroupName} needs a low-level master. Code with us!`, type: "recruit", effectDescription: "Recruit offer: +20 friendship, Ranger salary demand decreases" }
       ],
       infoType: "criticism",
       credibilityScore: 80,
@@ -702,6 +704,70 @@ export default function App() {
 
   const [bbsCustomMessage, setBbsCustomMessage] = useState<string>("");
   const [bbsEffectNotification, setBbsEffectNotification] = useState<string | null>(null);
+
+  // --------- BBS SEED NAME REBIND (mount-time bake workaround) ---------
+  // The bbsThreads seed at L~656 is constructed inside a `useState` initializer
+  // that runs once on mount — BEFORE the MainMenu has applied the user's typed
+  // crew name. Any `${playerGroupName}` in that seed is therefore evaluated
+  // against the default `"Tricycle Crews"` and baked in for the life of the
+  // component. We rebind here whenever the player actually sets a custom
+  // crew name, so the seed threads' reply/recruit bait matches what the
+  // player just typed. scenarioPool threads are unaffected because they
+  // are regenerated on every render via fresh template literals.
+  useEffect(() => {
+    if (playerGroupName === "Tricycle Crews") return;
+    setBbsThreads((prev) => {
+      let touched = false;
+      const rewritten = prev.map((t) => {
+        const choices = t.choices.map((c) => {
+          // effectDescription rarely mentions the player group, but we
+          // sweep it for safety in case future seeds add it.
+          if (c.text.includes("Tricycle Crews") || c.effectDescription.includes("Tricycle Crews")) {
+            touched = true;
+            return {
+              ...c,
+              text: c.text.replace(/Tricycle Crews/g, playerGroupName),
+              effectDescription: c.effectDescription.replace(/Tricycle Crews/g, playerGroupName),
+            };
+          }
+          return c;
+        });
+        const messages = t.messages.map((m) => {
+          if (typeof m.text === "string" && m.text.includes("Tricycle Crews")) {
+            touched = true;
+            return { ...m, text: m.text.replace(/Tricycle Crews/g, playerGroupName) };
+          }
+          return m;
+        });
+        return choices === t.choices && messages === t.messages ? t : { ...t, choices, messages };
+      });
+      return touched ? rewritten : prev;
+    });
+    // Mirror the bbsThreads rebind above for the social-graph seed.
+    // The player_group node is also pushed inside the graphNodes
+    // `useState` initializer (L~433/435), so it carries the
+    // default `"Tricycle Crews"` baked in until the player actually
+    // picks a custom crew name.
+    setGraphNodes((prev) => {
+      let touched = false;
+      const rewritten = prev.map((n) => {
+        if (n.id !== "player_group") return n;
+        const labelHas = n.label.includes("Tricycle Crews");
+        // SocialNode.details is optional; guard against undefined so
+        // the rebind is safe even if a player_group node ever lacks
+        // its details string (e.g. via a future reducer-driven hydrate).
+        const detailsHas = (n.details ?? "").includes("Tricycle Crews");
+        if (!labelHas && !detailsHas) return n;
+        touched = true;
+        return {
+          ...n,
+          label: n.label.replace(/Tricycle Crews/g, playerGroupName),
+          details: (n.details ?? "").replace(/Tricycle Crews/g, playerGroupName),
+        };
+      });
+      return touched ? rewritten : prev;
+    });
+  }, [playerGroupName]);
 
   // --------- EFFECT GALLERY MODAL STATE ---------
   const [showEffectGallery, setShowEffectGallery] = useState<boolean>(false);
@@ -1218,7 +1284,7 @@ export default function App() {
         targetType: "demo",
         type: "collaboration",
         weight: 95,
-        details: `Official creative release by Tricycle Crews.`
+        details: `Official creative release by ${playerGroupName}.`
       });
 
       if (newProd.effects.includes("copper_colors") || newProd.effects.includes("raster_bars")) {
@@ -1261,7 +1327,7 @@ export default function App() {
       return newEdges;
     });
 
-    const releaseStory = `Y${currentYear} M${currentMonth}: [Demo Release] Tricycle Crews released ${newProd.name.toUpperCase()} on ${newProd.platform}. Connected tools & crew nodes.`;
+    const releaseStory = `Y${currentYear} M${currentMonth}: [Demo Release] ${playerGroupName} released ${newProd.name.toUpperCase()} on ${newProd.platform}. Connected tools & crew nodes.`;
     setGraphStoryLogs((prev) => [releaseStory, ...prev].slice(0, 40));
 
     // Update screen canvas dynamically to render your compiled demo!
@@ -1500,7 +1566,7 @@ export default function App() {
           opinions[sorted[0].group] = Math.min(100, (opinions[sorted[0].group] || 0) + 20);
         } else if (isMemberOfPlayer) {
           if (placement === 1) {
-            memoryDesc = `Our team at Tricycle Crews took absolute first place gold! Thrilled to build the premier demogroup.`;
+            memoryDesc = `Our team at ${playerGroupName} took absolute first place gold! Thrilled to build the premier demogroup.`;
             sentiment = "positive";
             emotions.hype = 100;
             emotions.inspiration = Math.min(100, emotions.inspiration + 25);
@@ -1523,24 +1589,24 @@ export default function App() {
 
           if (placement === 1) {
             if (friendlyWithPlayer) {
-              memoryDesc = `Our friend in Tricycle Crews got rank #1 gold! Incredibly clean raster copper timing and visual art layouts.`;
+              memoryDesc = `Our friend in ${playerGroupName} got rank #1 gold! Incredibly clean raster copper timing and visual art layouts.`;
               sentiment = "positive";
               emotions.hype = Math.min(100, emotions.hype + 20);
               opinions["player_group"] = Math.min(100, (opinions["player_group"] || 0) + 15);
             } else if (rivalWithPlayer) {
               // BIAS REINFORCEMENT: A rival NPC interprets player gold as total voter coalition
-              memoryDesc = `Tricycle Crews won rank #1 gold, probably via organized BBS votepacks and floppy swap networks. Our demo is more technically advanced anyway.`;
+              memoryDesc = `${playerGroupName} won rank #1 gold, probably via organized BBS votepacks and floppy swap networks. Our demo is more technically advanced anyway.`;
               sentiment = "negative";
               emotions.stress = Math.min(100, emotions.stress + 20);
               opinions["player_group"] = Math.max(-100, (opinions["player_group"] || 0) - 20);
             } else {
-              memoryDesc = `Tricycle Crews surprise gold winner at ${activeParty?.name}. Fair play to their assembler loops.`;
+              memoryDesc = `${playerGroupName} surprise gold winner at ${activeParty?.name}. Fair play to their assembler loops.`;
               opinions["player_group"] = Math.min(100, (opinions["player_group"] || 0) + 8);
             }
           } else {
             // Player did not win, standard observation
             if (rivalWithPlayer) {
-              memoryDesc = `Tricycle Crews placed rank #${placement} at ${activeParty?.name}. Served them right. Their code splits are slow and unoptimized.`;
+              memoryDesc = `${playerGroupName} placed rank #${placement} at ${activeParty?.name}. Served them right. Their code splits are slow and unoptimized.`;
               sentiment = "positive"; // Rival happy!
               emotions.hype = Math.min(100, emotions.hype + 10);
             }
@@ -1776,7 +1842,7 @@ export default function App() {
     });
 
     const npcHandle = characters[npcId]?.handle || npcId;
-    const allianceMessage = `Y${currentYear} M${currentMonth}: [Collaboration Synergy] Tricycle Crews signed an official collaborative joint release agreement with ${npcHandle}! Gained +50 reputation!`;
+    const allianceMessage = `Y${currentYear} M${currentMonth}: [Collaboration Synergy] ${playerGroupName} signed an official collaborative joint release agreement with ${npcHandle}! Gained +50 reputation!`;
     setGraphStoryLogs((prev) => [allianceMessage, ...prev].slice(0, 40));
     setPlayerReputation((prev) => Math.min(prev + 55, 1000));
     setResearchPoints((prev) => prev + 20);
@@ -1787,7 +1853,7 @@ export default function App() {
         title: "SCENE DISK NEWSFLASH",
         year: currentYear,
         month: currentMonth,
-        headline: `TRICYCLE CREWS FORMS ALLIANCE WITH ${npcHandle.toUpperCase()}!`,
+        headline: `${playerGroupName.toUpperCase()} FORMS ALLIANCE WITH ${npcHandle.toUpperCase()}!`,
         body: `Exciting collaborative signatures! Player crew is teaming up with elite freelancer '${npcHandle}' to release a joint multi-platform executive presentation. The scene holds its breath!`,
         type: "tech_breakthrough"
       },
@@ -2302,7 +2368,7 @@ export default function App() {
         choices: [
           { text: "Agree with Ranger: Real assemblies are built cycle-by-cycle!", type: "support", effectDescription: "+25 Friendship with Ranger, +15 Motivation" },
           { text: "Flame Ranger: Flat memories allow gorgeous 3D calculations. 8-bit is done.", type: "flame", effectDescription: "-20 Friendship with Ranger" },
-          { text: "Recruit Ranger: Join Tricycle Crews and show them the true power of assembly!", type: "recruit", effectDescription: "+20 Friendship, recruiting discount on Ranger" }
+          { text: `Recruit Ranger: Join ${playerGroupName} and show them the true power of assembly!`, type: "recruit", effectDescription: "+20 Friendship, recruiting discount on Ranger" }
         ],
         interacted: false,
         playerActionTaken: null,
@@ -2331,7 +2397,7 @@ export default function App() {
         choices: [
           { text: "Support Dxyre: Art is the soul of a demo, do not sacrifice your passion!", type: "support", effectDescription: "+25 Friendship with Dxyre, drops burnout by 20" },
           { text: "Flame Dxyre: Stop crying about group fights and draw faster logos.", type: "flame", effectDescription: "-30 Friendship, triggers motivation loss" },
-          { text: "Recruit Dxyre: Join Tricycle Crews where pixel artists define the production direction!", type: "recruit", effectDescription: "Triggers dynamic group split, recruits discount!" }
+          { text: `Recruit Dxyre: Join ${playerGroupName} where pixel artists define the production direction!`, type: "recruit", effectDescription: "Triggers dynamic group split, recruits discount!" }
         ],
         interacted: false,
         playerActionTaken: null,
@@ -2417,7 +2483,7 @@ export default function App() {
         ],
         choices: [
           { text: "Support FC: We will be there in Finland to congratulate you in person!", type: "support", effectDescription: "+25 Friendship with Purple Motion, +10 motivation" },
-          { text: "Scoff announcement: Tricycle Crews will outscore you. The throne is ours.", type: "flame", effectDescription: "-20 Friendship, locks rivalry modifier" },
+          { text: `Scoff announcement: ${playerGroupName} will outscore you. The throne is ours.`, type: "flame", effectDescription: "-20 Friendship, locks rivalry modifier" },
           { text: "Hype alliance: Propose joint tracker disc swaps at the local hotel.", type: "recruit", effectDescription: "+20 Friendship, opens collaborative gateways" }
         ],
         interacted: false,
@@ -2476,7 +2542,7 @@ export default function App() {
         choices: [
           { text: "Praise tool: This editor speeds up graphics layout tenfold!", type: "support", effectDescription: "+25 Friendship with Trix, +15 Research points" },
           { text: "Critique tool: It crashes on Standard Amigas due to chip RAM limits.", type: "flame", effectDescription: "-20 Friendship, increases Trix burnout" },
-          { text: "Recruit Trix: Paint with Tricycle Crews using SceneDraw exclusively!", type: "recruit", effectDescription: "+20 Friendship, recruits Trix with high motivation" }
+          { text: `Recruit Trix: Paint with ${playerGroupName} using SceneDraw exclusively!`, type: "recruit", effectDescription: "+20 Friendship, recruits Trix with high motivation" }
         ],
         interacted: false,
         playerActionTaken: null,
@@ -2524,7 +2590,7 @@ export default function App() {
     const positiveKeywords = ["cool", "elite", "awesome", "great", "10/10", "rule", "rules", "god", "genius", "amazing", "beautiful", "smooth", "perfect", "optimize", "nice", "love", "respect", "salute", "master", "incredible", "legend", "superb"];
     const flameKeywords = ["lame", "suck", "sucks", "cheat", "bad", "slow", "fake", "pre-rendered", "pre-render", "noob", "copycat", "steal", "leak", "worst", "boring", "trash", "rip-off", "fraud", "loser", "weak"];
     const techKeywords = ["asm", "assembly", "6502", "raster", "copper", "code", "optimize", "register", "math", "pipeline", "lookup", "fast", "hardware", "machine", "cycles", "vblank", "interrupt", "interrupts", "mhz", "kilobyte", "kb"];
-    const recruitKeywords = ["join", "recruit", "team", "group", "crew", "tricycle", "salary", "hire", "work", "sign", "contract", "slot", "member", "hiring"];
+    const recruitKeywords = ["join", "recruit", "team", "group", "crew", "salary", "hire", "work", "sign", "contract", "slot", "member", "hiring"];
 
     const isPositive = positiveKeywords.some(keyword => normalized.includes(keyword));
     const isFlame = flameKeywords.some(keyword => normalized.includes(keyword));
@@ -2553,7 +2619,7 @@ export default function App() {
       effectMsg = `Flamed host! Dramatic breakdown: -15 Friendship, +15 Host Burnout, -10 Motivation.`;
     } else if (isRecruit) {
       friendshipChange = 10;
-      npcReply = `Tricycle Crews is definitely a rising force in the demoscene. Let's keep talking off-board via encrypted letter swaps or meet at the next party!`;
+      npcReply = `${playerGroupName} is definitely a rising force in the demoscene. Let's keep talking off-board via encrypted letter swaps or meet at the next party!`;
       effectMsg = `Recruitment pitch registry! Host feels highly valued. (+10 Friendship, contract slot interest unlocked)`;
     } else if (isTech) {
       friendshipChange = 12;
@@ -3282,6 +3348,13 @@ export default function App() {
                 <span>DOCUMENTS</span>
               </div>
             </button>
+              <button
+                              onClick={() => setActiveTab("economy")}
+                              className={"px-3 py-1.5 hover:bg-[#3f3f46] rounded flex items-center gap-1.5 cursor-pointer transition " +(activeTab === "economy" ? "bg-[#3f3f46] text-cyan-300" : "text-zinc-400")}
+                            >
+                              <Wallet className="w-3.5 h-3.5" />
+                              <span>ECONOMY</span>
+                            </button>
           </div>
 
           {/* TAB 1: WORKSPACE / COMPILER CREATOR STUDIO */}
@@ -3804,7 +3877,7 @@ export default function App() {
                             {containsContradiction && (
                               <div className="mb-3 p-2 rounded border border-rose-500/40 bg-rose-950/20 text-rose-300 text-[9px] leading-relaxed">
                                 <span className="font-extrabold block mb-0.5 text-rose-400">⚠️ CONTRADICTORY BELIEF ALERT</span>
-                                Split-consciousness registered. Subject holds high technical admiration ({cog.opinionVectors["player_group"] || 0} Opinion of Tricycle Crews) while concurrently maintaining suspicious or critical trust level ({cog.trustGraph["player"] || 40} Trust of Player).
+                                Split-consciousness registered. Subject holds high technical admiration ({cog.opinionVectors["player_group"] || 0} Opinion of ${playerGroupName}) while concurrently maintaining suspicious or critical trust level ({cog.trustGraph["player"] || 40} Trust of Player).
                               </div>
                             )}
 
@@ -3908,7 +3981,7 @@ export default function App() {
                               <span className="text-[#a855f7] font-bold text-[8.5px] uppercase tracking-wider block border-b border-purple-950/70 pb-0.5 mb-1.5">IV. REGISTRY OPINIONS</span>
                               <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1 text-[8.5px] text-zinc-400">
                                 <div className="flex justify-between border-b border-purple-950/10 pb-0.5">
-                                  <span>Tricycle Crews:</span>
+                                  <span>{playerGroupName}:</span>
                                   <span className={`font-bold ${
                                     (cog.opinionVectors["player_group"] || 0) > 0 ? "text-emerald-400" : (cog.opinionVectors["player_group"] || 0) < 0 ? "text-rose-400" : "text-zinc-500"
                                   }`}>
@@ -4798,7 +4871,7 @@ export default function App() {
                                           } else if (choice.type === "flame") {
                                             replyMsg = `Who asked you, ${playerHandle}? Why don't you focus on optimizing your own unpeeled register buffers before criticizing my releases?`;
                                           } else {
-                                            replyMsg = `Recruiting, ${playerHandle}? Tricycle Crews has original concepts and high disc supply loops. I guess it makes complete sense to talk off-board soon...`;
+                                            replyMsg = `Recruiting, ${playerHandle}? ${playerGroupName} has original concepts and high disc supply loops. I guess it makes complete sense to talk off-board soon...`;
                                           }
 
                                           return {
@@ -4903,7 +4976,7 @@ export default function App() {
                                 { text: "6502 assembly rules!", label: "ASM" },
                                 { text: "The vector routines feel totally elite!", label: "Praise" },
                                 { text: "Pre-rendered tables are so lame!", label: "Flame" },
-                                { text: "Tricycle Crews is hiring! Join our swaps.", label: "Recruit" },
+                                { text: `${playerGroupName} is hiring! Join our swaps.`, label: "Recruit" },
                                 { text: "Much respect to the original active composers.", label: "Support" }
                               ].map((chip, idx) => (
                                 <button
@@ -4938,7 +5011,7 @@ export default function App() {
                                 rows={2}
                                 value={bbsCustomMessage}
                                 onChange={(e) => setBbsCustomMessage(e.target.value.substring(0, 200))}
-                                placeholder="Type original bulletin commentary here (e.g., 'Your copper splits rule, cycle-perfect asm coding!' or tell them to join Tricycle Crews...)"
+                                placeholder={`Type original bulletin commentary here (e.g., 'Your copper splits rule, cycle-perfect asm coding!' or tell them to join ${playerGroupName}...)`}
                                 className="w-full bg-[#09090b] text-white border border-[#a855f7]/40 focus:border-[#a855f7] focus:outline-none focus:ring-1 focus:ring-[#a855f7] p-2 rounded text-[10.5px] font-mono placeholder:text-zinc-600 resize-none"
                               />
 
@@ -5072,6 +5145,12 @@ export default function App() {
           {activeTab === "gdd" && (
             <div className="space-y-4 animate-fadeIn">
               <GddViewer />
+            </div>
+          )}
+          {/* TAB 8: ECONOMY LEDGER */}
+          {activeTab === "economy" && (
+            <div className="space-y-4 animate-fadeIn">
+              <EconomyPanel loop={simulationLoopRef.current} />
             </div>
           )}
         </div>

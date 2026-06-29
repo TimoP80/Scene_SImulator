@@ -121,6 +121,12 @@ export function emptyWorldState(): WorldState {
       reputation: 20,
       researchPoints: 30,
       handle: "AssemblyKid",
+      // TODO(dynamic-name): this default is hardcoded so the seed
+      // bootstraps before the player has typed a name in MainMenu.
+      // Once the UI reads world state from the event-sourced store
+      // (instead of hydrating directly via setPlayerGroupName),
+      // route this through the same "Tricycle Crews" -> playerGroupName
+      // rebind the App-level useEffects already perform.
       groupName: "Tricycle Crews",
       activePlatform: PlatformId.C64,
       ownedRigs: [PlatformId.C64],

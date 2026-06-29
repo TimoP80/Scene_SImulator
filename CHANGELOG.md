@@ -50,3 +50,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - **`src/data.ts`** and **`src/types.ts`** — merged into `@sim/data` and `@packages/types`.
+
+### Added
+
+- **Dynamic crew-name propagation (`src/App.tsx`)** — all hardcoded `"Tricycle Crews"` strings across user-facing UI (BBS reply/recruit paths, release flow, party memories, alliance messages, cognitive contradiction diagnostic, social-graph stats label) now use the player's typed crew name (`${playerGroupName}`). A mount-time rebind `useEffect` rewrites `bbsThreads.choices[].text/.effectDescription`, `bbsThreads.messages[].text`, and the `graphNodes` `player_group` node `label`/`details` whenever the player sets a custom crew name — fixing the `useState`-initializer bake that would otherwise lock seeds to the default name.
+- **Expanded 1985–2005 demoparty calendar (`sim/data/partyCalendar.ts`)** — 13 era-appropriate venues added across the four eras: cracktros/early-C64 (`Copy Party 1989`, `Venlo Meeting`); Amiga-dominant (`Twilight Zone`, `Sun Demoparty`); 16-bit-end + early 3D-card (`Mekka & Symposium`, `Fishtank Party`, `Buenzli`, `Nordlicht`, `Outline`); 3D shader revolution (`Chaos Constructions`, `Wired`, `X`, `Evoke`, `Paradize`). Each carries era-appropriate attendance, prestige, competition brackets, location, and a scene-flavored `headlineNews`.
+- **Fullscreen demo view (`src/components/DemoScreen.tsx`)** — new `<FullscreenDemoView/>` portal-rendered component renders the same effects at native fullscreen resolution. New `paintDemoFrame` module-level helper keeps the inline card and the fullscreen view visually identical without sharing animation state across portals. Toolbar gains Maximize/Minimize/Exit controls using `Maximize2`/`Minimize2`/`X` from lucide-react; closes on ESC, on `F`, or by clicking EXIT.
+
+### Changed
+
+- **`src/components/DemoScreen.tsx`** — inline CRT loop now delegates every effect (raster bars, starfield, plasma, pixel fire, vector cube, tunnel, sine scroller, HUD) to the shared `paintDemoFrame` painter instead of duplicating logic per surface.
+
+### Fixed
+
+- BBS reply/recruit responses, release flow, party memories, alliance messages, cognitive-stats UI — no longer hardcode `"Tricycle Crews"` when the player picks a custom crew name.
+- `sim/engine/reducer.ts::emptyWorldState.groupName` hardcode flagged with a `TODO(dynamic-name)` for the eventual event-sourced hydrate path (current UI bypasses this through MainMenu's `setPlayerGroupName`).
+
+### Removed
+
+- The stale `"tricycle"` sentinel keyword from `src/App.tsx::handlePostCustomBbsMessage` `recruitKeywords` array (recruit detection is now purely intent-based).
